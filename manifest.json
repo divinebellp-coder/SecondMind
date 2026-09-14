@@ -1,0 +1,15 @@
+{
+  "name": "Claude Our New Mind",
+  "short_name": "Our Mind",
+  "description": "Your daily task companion — schedule, track, and stay on time.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#05070D",
+  "theme_color": "#05070D",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

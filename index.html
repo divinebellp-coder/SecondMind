@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Claude Our New Mind</title>
+<meta name="theme-color" content="#05070D" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; background: #05070D; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useCallback } = React;
+
+const STORAGE_KEY = "second-mind:data";
+
+const todayStr = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+const makeId = () =>
+  (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+
+const emptyState = () => ({ tasks: [], note: "", lastDate: todayStr(new Date()) });
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const today = todayStr(new Date());
+      if (parsed.lastDate !== today) {
+        parsed.tasks = (parsed.tasks || []).map((t) => ({ ...t, done: false }));
+        parsed.lastDate = today;
+      }
+      return parsed;
+    }
+  } catch (e) {}
+  return emptyState();
+}
+
+function saveData(data) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+const PARTICLES = [
+  { left: "12%", size: 4, dur: 6.5, delay: 0 },
+  { left: "26%", size: 3, dur: 8, delay: 1.2 },
+  { left: "48%", size: 5, dur: 7, delay: 2.4 },
+  { left: "64%", size: 3, dur: 9, delay: 0.6 },
+  { left: "80%", size: 4, dur: 6, delay: 3.1 },
+  { left: "92%", size: 3, dur: 7.5, delay: 1.8 },
+];
+
+function ClaudeOurNewMind() {
+  const [now, setNow] = useState(new Date());
+  const [data, setData] = useState(() => loadData());
+  const [saveError, setSaveError] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [timeInput, setTimeInput] = useState("07:00");
+  const noteTimer = useRef(null);
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const updateData = (updater) => {
+    setData((prev) => {
+      const next = updater(prev);
+      setSaveError(!saveData(next));
+      return next;
+    });
+  };
+
+  const addTask = () => {
+    const name = nameInput.trim();
+    if (!name || !timeInput) return;
+    updateData((prev) => ({
+      ...prev,
+      tasks: [...prev.tasks, { id: makeId(), name, time: timeInput, done: false }],
+    }));
+    setNameInput("");
+  };
+
+  const toggleTask = (id) => {
+    updateData((prev) => ({
+      ...prev,
+      tasks: prev.tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
+    }));
+  };
+
+  const deleteTask = (id) => {
+    updateData((prev) => ({ ...prev, tasks: prev.tasks.filter((t) => t.id !== id) }));
+  };
+
+  const onNoteChange = (val) => {
+    setData((prev) => ({ ...prev, note: val }));
+    if (noteTimer.current) clearTimeout(noteTimer.current);
+    noteTimer.current = setTimeout(() => {
+      setData((prev) => {
+        setSaveError(!saveData(prev));
+        return prev;
+      });
+    }, 500);
+  };
+
+  const sortedTasks = [...data.tasks].sort((a, b) => a.time.localeCompare(b.time));
+  const nowHM = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const upcoming = sortedTasks.find((t) => !t.done && t.time >= nowHM) ||
+    sortedTasks.find((t) => !t.done);
+
+  const doneCount = sortedTasks.filter((t) => t.done).length;
+  const pct = sortedTasks.length ? Math.round((doneCount / sortedTasks.length) * 100) : 0;
+
+  const dateStr = new Intl.DateTimeFormat("en-US", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
+  }).format(now);
+
+  const timeStr = now.toLocaleTimeString("en-GB", { hour12: false });
+
+  return (
+    <div style={S.page}>
+      <GlobalStyle />
+      <div style={S.shell}>
+        <div style={S.hero}>
+          <div style={S.heroGlow} />
+          {PARTICLES.map((p, i) => (
+            <span key={i} style={{ ...S.particle, left: p.left, width: p.size, height: p.size, animationDuration: `${p.dur}s`, animationDelay: `${p.delay}s` }} />
+          ))}
+          <div style={S.heroRow}>
+            <BookIcon style={S.bookIcon} />
+            <div style={S.heroTitleWrap}>
+              <div style={S.heroTitle}>Claude Our New Mind</div>
+              <div style={S.heroSub}>{dateStr}</div>
+            </div>
+            <DumbbellIcon style={S.dumbbellIcon} />
+          </div>
+          <div style={S.clock}>{timeStr}</div>
+          {sortedTasks.length > 0 && (
+            <div style={S.progressWrap}>
+              <div style={S.progressTrack}><div style={{ ...S.progressFill, width: `${pct}%` }} /></div>
+              <div style={S.progressLabel}>{doneCount} / {sortedTasks.length} done today</div>
+            </div>
+          )}
+        </div>
+
+        <div style={S.upcomingCard}>
+          {upcoming ? (
+            <>
+              <div style={S.upcomingLabel}>Next up</div>
+              <div style={S.upcomingRow}>
+                <span style={S.upcomingName}>{upcoming.name}</span>
+                <span style={S.upcomingTime}>{upcoming.time}</span>
+              </div>
+            </>
+          ) : (
+            <div style={S.upcomingEmpty}>No tasks scheduled yet. Add one below.</div>
+          )}
+        </div>
+
+        <div style={S.card}>
+          <div style={S.cardTitle}>Add a task</div>
+          <div style={S.addRow}>
+            <input style={S.inputName} value={nameInput} onChange={(e) => setNameInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addTask()} placeholder="e.g. Workout, Study, Check email..." />
+            <input type="time" style={S.inputTime} value={timeInput} onChange={(e) => setTimeInput(e.target.value)} />
+            <button style={S.addBtn} onClick={addTask}>Add</button>
+          </div>
+        </div>
+
+        <div style={S.card}>
+          <div style={S.cardTitle}>Today's tasks ({sortedTasks.length})</div>
+          {sortedTasks.length === 0 ? (
+            <div style={S.empty}>Nothing added yet.</div>
+          ) : (
+            <div style={S.taskList}>
+              {sortedTasks.map((t, i) => (
+                <div key={t.id} style={{ ...S.taskRow, animationDelay: `${i * 0.04}s` }}>
+                  <button style={{ ...S.checkbox, ...(t.done ? S.checkboxDone : {}) }} onClick={() => toggleTask(t.id)}>{t.done ? "✓" : ""}</button>
+                  <span style={{ ...S.taskTime, ...(t.done ? S.strike : {}) }}>{t.time}</span>
+                  <span style={{ ...S.taskName, ...(t.done ? S.strike : {}) }}>{t.name}</span>
+                  <button style={S.deleteBtn} onClick={() => deleteTask(t.id)}>Delete</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={S.card}>
+          <div style={S.cardTitle}>Quick notes</div>
+          <textarea style={S.textarea} value={data.note} onChange={(e) => onNoteChange(e.target.value)} placeholder="Jot down whatever's on your mind..." />
+        </div>
+
+        <div style={S.infoCard}>This app runs fully on your device. Weather, email, and real alarms still need Claude in chat.</div>
+        {saveError && <div style={S.errorBanner}>Couldn't save. Try again.</div>}
+      </div>
+    </div>
+  );
+}
+
+function GlobalStyle() {
+  return (
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap');
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      ::selection { background: #4C7DFF; color: #05070D; }
+      input::placeholder, textarea::placeholder { color: #4A5470; }
+      input:focus, textarea:focus, button:focus-visible { outline: 2px solid #4C7DFF; outline-offset: 2px; }
+      button { transition: transform 0.15s ease; }
+      button:active { transform: scale(0.94); }
+      @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+      @keyframes pushupBook { 0%,100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-10px) rotate(2deg); } }
+      @keyframes pushupDumbbell { 0%,100% { transform: translateY(-10px) rotate(3deg); } 50% { transform: translateY(0) rotate(-3deg); } }
+      @keyframes glow { 0%,100% { opacity: .35; transform: translateX(-50%) scale(1); } 50% { opacity: .6; transform: translateX(-50%) scale(1.08); } }
+      @keyframes floatUp { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: .8; } 85% { opacity: .5; } 100% { transform: translateY(-90px); opacity: 0; } }
+      @keyframes shimmer { 0% { background-position: -60px 0; } 100% { background-position: 60px 0; } }
+      @keyframes fadeInUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes pulseBorder { 0%,100% { box-shadow: 0 8px 30px -10px rgba(76,125,255,.5), 0 0 0 0 rgba(0,217,255,.35); } 50% { box-shadow: 0 8px 34px -8px rgba(76,125,255,.65), 0 0 0 6px rgba(0,217,255,0); } }
+      @keyframes popIn { 0% { transform: scale(.7); } 60% { transform: scale(1.15); } 100% { transform: scale(1); } }
+    `}</style>
+  );
+}
+
+function BookIcon({ style }) {
+  return (
+    <svg viewBox="0 0 48 48" width="40" height="40" style={style}>
+      <path d="M6 8C6 8 14 5 24 9V39C14 35 6 38 6 38V8Z" fill="#4C7DFF" opacity="0.9" />
+      <path d="M42 8C42 8 34 5 24 9V39C34 35 42 38 42 38V8Z" fill="#00D9FF" opacity="0.85" />
+      <path d="M24 9V39" stroke="#05070D" strokeWidth="1.5" opacity="0.4" />
+    </svg>
+  );
+}
+
+function DumbbellIcon({ style }) {
+  return (
+    <svg viewBox="0 0 48 48" width="40" height="40" style={style}>
+      <rect x="4" y="18" width="8" height="12" rx="2" fill="#00D9FF" />
+      <rect x="36" y="18" width="8" height="12" rx="2" fill="#00D9FF" />
+      <rect x="12" y="22" width="24" height="4" rx="2" fill="#4C7DFF" />
+      <rect x="8" y="14" width="4" height="20" rx="1.5" fill="#4C7DFF" opacity="0.8" />
+      <rect x="36" y="14" width="4" height="20" rx="1.5" fill="#4C7DFF" opacity="0.8" />
+    </svg>
+  );
+}
+
+const S = {
+  page: { minHeight: "100vh", width: "100%", background: "radial-gradient(ellipse 800px 500px at 50% -10%, #101A33 0%, #05070D 55%)", fontFamily: "'Inter', system-ui, sans-serif", color: "#E8ECF5", padding: "28px 16px 48px" },
+  shell: { maxWidth: 480, margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 },
+  hero: { position: "relative", padding: "20px 6px 8px", textAlign: "center", overflow: "hidden" },
+  heroGlow: { position: "absolute", top: -40, left: "50%", width: 260, height: 140, background: "#4C7DFF", filter: "blur(70px)", borderRadius: "50%", animation: "glow 4s ease-in-out infinite", pointerEvents: "none" },
+  particle: { position: "absolute", bottom: 10, borderRadius: "50%", background: "#00D9FF", animation: "floatUp linear infinite", pointerEvents: "none" },
+  heroRow: { position: "relative", display: "flex", alignItems: "center", justifyContent: "center", gap: 14 },
+  bookIcon: { animation: "pushupBook 1.8s ease-in-out infinite", flex: "0 0 auto" },
+  dumbbellIcon: { animation: "pushupDumbbell 1.8s ease-in-out infinite", flex: "0 0 auto" },
+  heroTitleWrap: { display: "flex", flexDirection: "column", alignItems: "center", gap: 6 },
+  heroTitle: { fontFamily: "'Space Grotesk', system-ui, sans-serif", fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", background: "linear-gradient(90deg, #E8ECF5 0%, #8FB4FF 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" },
+  heroSub: { fontSize: 12.5, color: "#6B7590", fontWeight: 500 },
+  clock: { position: "relative", marginTop: 14, fontFamily: "'Space Grotesk', system-ui, sans-serif", fontSize: 48, fontWeight: 600, letterSpacing: "1px", color: "#E8ECF5", fontVariantNumeric: "tabular-nums", lineHeight: 1.1 },
+  progressWrap: { position: "relative", marginTop: 16, padding: "0 8px" },
+  progressTrack: { height: 6, borderRadius: 4, background: "#141C2C", overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 4, background: "linear-gradient(90deg, #4C7DFF 0%, #00D9FF 50%, #4C7DFF 100%)", backgroundSize: "60px 100%", animation: "shimmer 1.4s linear infinite", transition: "width 0.4s ease" },
+  progressLabel: { marginTop: 6, fontSize: 11.5, color: "#6B7590", fontWeight: 500 },
+  upcomingCard: { position: "relative", background: "linear-gradient(135deg, #4C7DFF 0%, #1E3A8A 100%)", borderRadius: 18, padding: "18px 20px", color: "#F4F7FF", animation: "pulseBorder 3s ease-in-out infinite" },
+  upcomingLabel: { fontSize: 12, fontWeight: 600, opacity: .8, marginBottom: 6 },
+  upcomingRow: { display: "flex", justifyContent: "space-between", alignItems: "baseline" },
+  upcomingName: { fontSize: 20, fontWeight: 700 },
+  upcomingTime: { fontSize: 22, fontWeight: 800, fontVariantNumeric: "tabular-nums" },
+  upcomingEmpty: { fontSize: 14, fontWeight: 600 },
+  card: { background: "#0E1420", border: "1px solid #1B2436", borderRadius: 16, padding: 16 },
+  cardTitle: { fontSize: 14, fontWeight: 600, color: "#AEB8D4", marginBottom: 12 },
+  addRow: { display: "flex", gap: 8, flexWrap: "wrap" },
+  inputName: { flex: "1 1 160px", background: "#05070D", border: "1px solid #1B2436", borderRadius: 10, padding: "10px 12px", color: "#E8ECF5", fontSize: 14, fontFamily: "inherit" },
+  inputTime: { flex: "0 0 100px", background: "#05070D", border: "1px solid #1B2436", borderRadius: 10, padding: "10px 8px", color: "#E8ECF5", fontSize: 14, fontFamily: "inherit" },
+  addBtn: { flex: "0 0 auto", background: "#4C7DFF", color: "#05070D", border: "none", borderRadius: 10, padding: "10px 16px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
+  taskList: { display: "flex", flexDirection: "column", gap: 6 },
+  taskRow: { display: "flex", alignItems: "center", gap: 10, padding: "10px 4px", borderBottom: "1px solid #161D2C", animation: "fadeInUp 0.35s ease backwards" },
+  checkbox: { width: 22, height: 22, flex: "0 0 22px", borderRadius: 7, border: "1.5px solid #2A3550", background: "transparent", color: "#05070D", fontSize: 13, fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 },
+  checkboxDone: { background: "#00D9FF", borderColor: "#00D9FF", color: "#05070D", animation: "popIn 0.3s ease" },
+  taskTime: { fontSize: 13, color: "#6B7590", fontVariantNumeric: "tabular-nums", flex: "0 0 auto" },
+  taskName: { fontSize: 14, color: "#E8ECF5", flex: 1 },
+  strike: { textDecoration: "line-through", color: "#3E4864" },
+  deleteBtn: { background: "transparent", border: "none", color: "#3E4864", fontSize: 12, cursor: "pointer", fontFamily: "inherit", padding: "4px 6px" },
+  empty: { fontSize: 13, color: "#3E4864" },
+  textarea: { width: "100%", minHeight: 90, background: "#05070D", border: "1px solid #1B2436", borderRadius: 10, padding: 12, color: "#E8ECF5", fontSize: 14, fontFamily: "inherit", resize: "vertical" },
+  infoCard: { fontSize: 12, color: "#3E4864", padding: "6px 8px", lineHeight: 1.7, textAlign: "center" },
+  errorBanner: { background: "#2A1414", color: "#FF9D9D", fontSize: 12, padding: "10px 12px", borderRadius: 10, textAlign: "center" },
+};
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<ClaudeOurNewMind />);
+</script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>
